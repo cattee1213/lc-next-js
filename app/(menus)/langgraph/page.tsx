@@ -1,32 +1,33 @@
 'use client';
 
-import SiliconFlowChat from "../../lib/silicon-flow-chat";
+import AgentService from "../../lib/agent-service";
 import React, { useState } from "react";
 import Markdown from 'react-markdown'
-import { AIMessage, HumanMessage } from "@langchain/core/messages";
 
 export default function CustomLLMChat() {
 
-  const [q, setQ] = useState("");
-  const [r, setR] = useState("");
+  const [q, setQ] = useState<string>("");
+  const [r, setR] = useState<string>("");
   const [loading, setLoading] = useState(false);
 
   async function fetchData() {
-    setLoading(true);
-    setR("");
-    const llm = new SiliconFlowChat()
-
-    const stream = await llm.stream([
-      new HumanMessage(q)
-    ]);
-    for await (const chunk of stream) {
-      if (chunk.content) {
-        setR(r => r + chunk.content);
-      }
+    try {
+      setLoading(true);
+      setR("");
+      const res = await fetch("/api/agent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: q }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "请求失败");
+      setR(String(data.answer ?? ""));
+    } catch (e: any) {
+      setR(e.message ?? String(e));
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
-
 
 
   return (
@@ -42,11 +43,11 @@ export default function CustomLLMChat() {
           onClick={fetchData}
           className="bg-indigo-400 text-white w-full rounded-md uppercase"
           disabled={loading}
-        >
-          {loading ? "Loading..." : "send"}
-        </button>
+        >send</button>
         <div className="w-full  flex-1 border-1 border-gray-200 border-solid p-2 overflow-auto">
-          <Markdown>{r}</Markdown>
+          <Markdown>
+            {r}
+          </Markdown>
         </div>
       </div>
     </main>

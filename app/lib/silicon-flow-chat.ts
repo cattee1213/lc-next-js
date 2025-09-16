@@ -1,4 +1,3 @@
-'use client';
 import { ChatOpenAI } from '@langchain/openai'; // 借用 OpenAI 的结构
 import { CallbackManagerForLLMRun } from '@langchain/core/callbacks/manager';
 import { AIMessageChunk, type BaseMessage } from '@langchain/core/messages';

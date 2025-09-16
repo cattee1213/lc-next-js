@@ -21,6 +21,7 @@ const menuList = [
   { name: "Home", path: "/" },
   { name: "Simple Chat", path: "/simple-chat" },
   { name: "Custom LLM Chat", path: "/custom-llm-chat" },
+  { name: "LangGraph", path: "/langgraph" },
 ];
 
 
@@ -32,7 +33,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col h-screen`}
       >
         <header className="w-full h-16 flex items-center px-4 border-b border-gray-200">
           <div className="flex items-center gap-8">
@@ -47,7 +48,9 @@ export default function RootLayout({
             ))}
           </div>
         </header>
-        {children}
+        <div className="flex-1">
+          {children}
+        </div>
       </body>
     </html>
   );
