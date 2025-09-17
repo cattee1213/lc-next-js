@@ -1,11 +1,18 @@
 import 'server-only';
 import SiliconFlowChat from './silicon-flow-chat';
 
-import { TavilySearchResults } from '@langchain/community/tools/tavily_search';
+import { TavilySearch } from '@langchain/tavily';
 import { MemorySaver } from '@langchain/langgraph';
 import { HumanMessage } from '@langchain/core/messages';
 import { createReactAgent } from '@langchain/langgraph/prebuilt';
 import { BaseCallbackHandler } from '@langchain/core/callbacks/base';
+
+// 定义事件类型（可选）
+export type AgentEvent =
+  | { type: 'toolStart'; name: string; input: any }
+  | { type: 'toolEnd'; name: string; output: any }
+  | { type: 'toolError'; name: string; error: string }
+  | { type: 'llmOutput'; text: string };
 
 export default class AgentService {
   private readonly agent: any;
@@ -13,52 +20,87 @@ export default class AgentService {
   private readonly defaultThreadId: string;
 
   constructor(defaultThreadId = '42') {
-    const tools = [new TavilySearchResults({ maxResults: 3, apiKey: process.env.NEXT_PUBLIC_TAVILY_API_KEY })];
+    const tools = [
+      new TavilySearch({
+        maxResults: 3,
+        tavilyApiKey: process.env.TAVILY_API_KEY || process.env.NEXT_PUBLIC_TAVILY_API_KEY
+      })
+    ];
     const model = new SiliconFlowChat('', false);
 
     this.defaultThreadId = defaultThreadId;
     this.agent = createReactAgent({
       llm: model,
       tools,
-      checkpointSaver: this.checkpointer,
-      // 关键：使用 messageModifier（而不是 prompt）加强 ReAct 模式与工具名；输出为 Markdown
-      messageModifier: [
-        'You are a helpful assistant with access to tools.',
-        'Always use the tool tavily_search_results_json to fetch up-to-date info before answering.',
-        'Respond in GitHub-Flavored Markdown:',
-        '- Use headings, bullet lists, and tables when helpful.',
-        '- Use fenced code blocks with language tags for code.',
-        '- Keep answers concise.',
-        'Use ReAct format strictly:',
-        'Thought: Do I need to use a tool? yes',
-        'Action: tavily_search_results_json',
-        'Action Input: {"query": "<the query to search>"}',
-        'Observation: <tool result>',
-        'Thought: <reason about the observation>',
-        'Final Answer: <your final answer in Markdown with a Sources section>',
-        'Sources:',
-        '- [<title>](<url>)'
-      ].join('\n')
+      checkpointSaver: this.checkpointer
     });
   }
 
-  async ask(prompt: string, threadId?: string) {
+  /**
+   * @param prompt 用户问题
+   * @param threadId 线程ID
+   * @param onEvent 实时事件回调（可在外层推送到前端）
+   */
+  async ask(
+    prompt: string,
+    threadId?: string,
+    onEvent?: (e: AgentEvent) => void
+  ): Promise<{ answer: any; events: AgentEvent[] }> {
+    const events: AgentEvent[] = [];
+
+    const emit = (e: AgentEvent) => {
+      events.push(e);
+      onEvent?.(e);
+    };
+
     const handler = new (class extends BaseCallbackHandler {
-      name = 'tavily-logger';
+      name = 'agent-logger';
+
+      private extractToolName(tool: any) {
+        if (!tool) return 'unknown_tool';
+        return (
+          tool.name ||
+          tool.kwargs?.name ||
+          (Array.isArray(tool.id) ? tool.id[tool.id.length - 1] : undefined) ||
+          tool.constructor?.name ||
+          'unknown_tool'
+        );
+      }
+
       async handleToolStart(tool: any, input: any) {
-        console.log('[TOOL START]', tool?.name, input);
+        const name = this.extractToolName(tool);
+        console.log('[TOOL START]', name, input);
+        emit({ type: 'toolStart', name, input });
       }
-      async handleToolEnd(output: any) {
+      async handleToolEnd(output: any, tool?: any) {
+        const name = this.extractToolName(tool);
         const out = typeof output === 'string' ? output : JSON.stringify(output);
-        console.log('[TOOL END]', out.slice(0, 400));
+        console.log('[TOOL END]', name, out.slice(0, 400));
+        emit({ type: 'toolEnd', name, output });
       }
-      async handleToolError(err: Error) {
-        console.error('[TOOL ERROR]', err?.message ?? String(err));
+      async handleToolError(err: Error, tool?: any) {
+        const name = this.extractToolName(tool);
+        console.error('[TOOL ERROR]', name, err.message);
+        emit({ type: 'toolError', name, error: err.message });
       }
+
+      async onToolStart(tool: any, input: any) {
+        return this.handleToolStart(tool, input);
+      }
+      async onToolEnd(output: any, tool?: any) {
+        return this.handleToolEnd(output, tool);
+      }
+      async onToolError(err: Error, tool?: any) {
+        return this.handleToolError(err, tool);
+      }
+
       async handleLLMEnd(output: any) {
         try {
           const txt = output?.generations?.[0]?.[0]?.text ?? output?.generations?.[0]?.[0]?.message?.content ?? '';
-          if (txt) console.log('[LLM OUTPUT]', String(txt).slice(0, 800));
+          if (txt) {
+            console.log('[LLM OUTPUT]', txt.slice(0, 400));
+            emit({ type: 'llmOutput', text: txt });
+          }
         } catch {}
       }
     })();
@@ -70,6 +112,8 @@ export default class AgentService {
         callbacks: [handler]
       }
     );
-    return res.messages[res.messages.length - 1]?.content;
+
+    const answer = res.messages[res.messages.length - 1]?.content;
+    return { answer, events };
   }
 }

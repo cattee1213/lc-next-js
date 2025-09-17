@@ -21,6 +21,7 @@ export default function CustomLLMChat() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "请求失败");
+      console.log(data.events);
       setR(String(data.answer ?? ""));
     } catch (e: any) {
       setR(e.message ?? String(e));
