@@ -23,7 +23,7 @@ export default class AgentService {
     const tools = [
       new TavilySearch({
         maxResults: 3,
-        tavilyApiKey: process.env.TAVILY_API_KEY || process.env.NEXT_PUBLIC_TAVILY_API_KEY
+        tavilyApiKey: process.env.NEXT_PUBLIC_TAVILY_API_KEY
       })
     ];
     const model = new SiliconFlowChat('', false);
@@ -74,7 +74,8 @@ export default class AgentService {
       }
       async handleToolEnd(output: any, tool?: any) {
         const name = this.extractToolName(tool);
-        const out = typeof output === 'string' ? output : JSON.stringify(output);
+        const out =
+          typeof output === 'string' ? output : JSON.stringify(output);
         console.log('[TOOL END]', name, out.slice(0, 400));
         emit({ type: 'toolEnd', name, output });
       }
@@ -96,7 +97,10 @@ export default class AgentService {
 
       async handleLLMEnd(output: any) {
         try {
-          const txt = output?.generations?.[0]?.[0]?.text ?? output?.generations?.[0]?.[0]?.message?.content ?? '';
+          const txt =
+            output?.generations?.[0]?.[0]?.text ??
+            output?.generations?.[0]?.[0]?.message?.content ??
+            '';
           if (txt) {
             console.log('[LLM OUTPUT]', txt.slice(0, 400));
             emit({ type: 'llmOutput', text: txt });
@@ -115,5 +119,12 @@ export default class AgentService {
 
     const answer = res.messages[res.messages.length - 1]?.content;
     return { answer, events };
+  }
+
+  async getGhraphPng() {
+    const gh = this.agent.getGraph();
+    const image = await gh.drawMermaidPng();
+    const arrayBuffer = await image.arrayBuffer();
+    return Buffer.from(arrayBuffer);
   }
 }

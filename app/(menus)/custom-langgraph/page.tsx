@@ -12,7 +12,7 @@ export default function CustomLLMChat() {
     try {
       setLoading(true);
       setR('');
-      const res = await fetch('/api/agent', {
+      const res = await fetch('/api/custom-agent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: q })
@@ -30,7 +30,7 @@ export default function CustomLLMChat() {
 
   async function getMermaid() {
     const filename = 'graph.png';
-    window.location.href = `/api/agent/mermaid?filename=${encodeURIComponent(
+    window.location.href = `/api/custom-agent/mermaid?filename=${encodeURIComponent(
       filename
     )}`;
   }

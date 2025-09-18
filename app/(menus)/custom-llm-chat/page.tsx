@@ -27,8 +27,6 @@ export default function CustomLLMChat() {
     setLoading(false);
   }
 
-
-
   return (
     <main className="w-full h-full flex flex-col items-center justify-center">
       <div className="w-[600px] h-[600px] shadow border-1 border-gray-200 border-solid flex flex-col items-start justify-start p-4 gap-6 rounded-lg">
